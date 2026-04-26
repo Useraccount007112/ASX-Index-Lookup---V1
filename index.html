@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASX Company Index Lookup</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-mark">ASX</span>
+          <span class="logo-text">Index Lookup</span>
+        </div>
+        <div class="header-meta">
+          <span>Powered by Anthropic AI + Web Search</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main>
+    <div class="container">
+
+      <!-- Hero -->
+      <section class="hero">
+        <h1>Find any ASX company's<br/>index membership</h1>
+        <p class="hero-sub">Search by company name or ticker to see if it's in the ASX 20, 50, 100, 200, 300, All Ordinaries, or Small Caps.</p>
+      </section>
+
+      <!-- API Key Setup -->
+      <section class="api-setup" id="apiSetup">
+        <div class="setup-card">
+          <div class="setup-icon">🔑</div>
+          <h2>Setup required</h2>
+          <p>This app uses the Anthropic API with live web search to fetch accurate, up-to-date ASX index data. Enter your Anthropic API key below to get started.</p>
+          <p class="setup-note">Your key is stored in your browser only and never sent anywhere except directly to Anthropic's API.</p>
+          <div class="key-row">
+            <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+            <button class="btn-primary" onclick="saveApiKey()">Save key</button>
+          </div>
+          <p class="setup-link">Don't have a key? <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Get one from Anthropic Console →</a></p>
+        </div>
+      </section>
+
+      <!-- Search Section -->
+      <section class="search-section" id="searchSection" style="display:none;">
+        <div class="search-card">
+          <div class="search-row">
+            <div class="search-input-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="searchInput" placeholder="Search by company name or ASX ticker (e.g. BHP, Commonwealth Bank, CSL...)" />
+            </div>
+            <button class="btn-primary" id="searchBtn" onclick="doSearch()">Look up</button>
+          </div>
+          <div class="quick-chips">
+            <span class="chip-label">Try:</span>
+            <button class="chip" onclick="quickSearch('BHP')">BHP</button>
+            <button class="chip" onclick="quickSearch('CBA')">CBA</button>
+            <button class="chip" onclick="quickSearch('CSL')">CSL</button>
+            <button class="chip" onclick="quickSearch('Pilbara Minerals')">Pilbara Minerals</button>
+            <button class="chip" onclick="quickSearch('Zip Co')">Zip Co</button>
+            <button class="chip" onclick="quickSearch('Fortescue')">Fortescue</button>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div id="historyBar" class="history-bar" style="display:none;">
+          <span class="chip-label">Recent:</span>
+          <div id="historyChips"></div>
+          <button class="key-reset-btn" onclick="resetApiKey()" title="Change API key">Change API key</button>
+        </div>
+
+        <!-- Result area -->
+        <div id="resultArea"></div>
+      </section>
+
+      <!-- How it works -->
+      <section class="how-section" id="howSection">
+        <h2>How it works</h2>
+        <div class="how-grid">
+          <div class="how-card">
+            <div class="how-num">01</div>
+            <h3>Search any company</h3>
+            <p>Enter a company name or ASX ticker code. The app recognises both — "BHP" or "BHP Group" will both work.</p>
+          </div>
+          <div class="how-card">
+            <div class="how-num">02</div>
+            <h3>Live web search</h3>
+            <p>The Anthropic AI uses real-time web search to find the most current index membership data from ASX and S&amp;P sources.</p>
+          </div>
+          <div class="how-card">
+            <div class="how-num">03</div>
+            <h3>Index classification</h3>
+            <p>Results show all indices the company belongs to — the indices are nested, so ASX 100 members are also in ASX 200, 300, and All Ords.</p>
+          </div>
+        </div>
+
+        <div class="index-explainer">
+          <h3>About ASX indices</h3>
+          <div class="index-chain">
+            <div class="index-pill pill-20">ASX 20</div>
+            <div class="chain-arrow">⊂</div>
+            <div class="index-pill pill-50">ASX 50</div>
+            <div class="chain-arrow">⊂</div>
+            <div class="index-pill pill-100">ASX 100</div>
+            <div class="chain-arrow">⊂</div>
+            <div class="index-pill pill-200">ASX 200</div>
+            <div class="chain-arrow">⊂</div>
+            <div class="index-pill pill-300">ASX 300</div>
+            <div class="chain-arrow">⊂</div>
+            <div class="index-pill pill-ords">All Ords</div>
+          </div>
+          <p class="index-note">The <strong>Small Ordinaries</strong> index consists of companies in the All Ords that are <em>not</em> in the ASX 100. Indices are rebalanced quarterly by S&amp;P Dow Jones Indices.</p>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>ASX Index Lookup — for informational purposes only. Index data sourced via live web search and may not reflect the latest quarterly rebalance. Not financial advice.</p>
+      <p style="margin-top:6px;">Built with the <a href="https://www.anthropic.com" target="_blank" rel="noopener">Anthropic API</a>. Designed for GitHub Pages hosting.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
