@@ -1,304 +1,232 @@
-/* =====================
-   ASX Index Lookup — App Logic
-   ===================== */
+/* ASX Index Lookup — app.js v2 */
 
-const STORAGE_KEY = 'asx_anthropic_key';
-const HISTORY_KEY = 'asx_search_history';
-let searchHistory = [];
+const HISTORY_KEY = 'asx_history_v2';
+const API_KEY     = 'asx_api_key_v2';
+let history = [];
 
-/* ---- Initialise ---- */
 document.addEventListener('DOMContentLoaded', () => {
-  const savedKey = sessionStorage.getItem(STORAGE_KEY);
-  if (savedKey) {
-    showSearchSection();
-  }
-
-  // Load history
-  try {
-    searchHistory = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || '[]');
-  } catch { searchHistory = []; }
-
+  try { history = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || '[]'); } catch { history = []; }
   renderHistory();
-
-  // Allow Enter key in search
   document.getElementById('searchInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') doSearch();
   });
-
-  // Allow Enter key in API key input
   document.getElementById('apiKeyInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') saveApiKey();
   });
 });
 
-/* ---- API Key Management ---- */
+/* ── UI helpers ── */
+function toggleAiPanel() {
+  const p = document.getElementById('aiPanel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+
 function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim();
-  if (!key.startsWith('sk-ant-')) {
-    alert('Please enter a valid Anthropic API key starting with "sk-ant-"');
-    return;
-  }
-  sessionStorage.setItem(STORAGE_KEY, key);
-  showSearchSection();
+  if (!key.startsWith('sk-ant-')) { alert('Please enter a valid Anthropic API key (starts with sk-ant-)'); return; }
+  sessionStorage.setItem(API_KEY, key);
+  document.getElementById('aiPanel').style.display = 'none';
+  doSearch();
 }
 
-function resetApiKey() {
-  sessionStorage.removeItem(STORAGE_KEY);
-  document.getElementById('searchSection').style.display = 'none';
-  document.getElementById('apiSetup').style.display = 'block';
-  document.getElementById('apiKeyInput').value = '';
-  document.getElementById('resultArea').innerHTML = '';
+function quickSearch(term) {
+  document.getElementById('searchInput').value = term;
+  doSearch();
 }
 
-function getApiKey() {
-  return sessionStorage.getItem(STORAGE_KEY);
-}
-
-function showSearchSection() {
-  document.getElementById('apiSetup').style.display = 'none';
-  document.getElementById('searchSection').style.display = 'block';
-}
-
-/* ---- History ---- */
-function addToHistory(query) {
-  searchHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 8);
-  sessionStorage.setItem(HISTORY_KEY, JSON.stringify(searchHistory));
+function addHistory(q) {
+  history = [q, ...history.filter(h => h !== q)].slice(0, 8);
+  sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   renderHistory();
 }
 
 function renderHistory() {
   const bar = document.getElementById('historyBar');
   const chips = document.getElementById('historyChips');
-  if (searchHistory.length === 0) {
-    bar.style.display = 'none';
-    return;
-  }
+  if (!history.length) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
-  chips.innerHTML = searchHistory
-    .map(h => `<button class="chip" onclick="quickSearch('${h.replace(/'/g, "\\'")}')">${h}</button>`)
-    .join('');
+  chips.innerHTML = history.map(h =>
+    `<button class="chip" onclick="quickSearch('${h.replace(/'/g,"\\'")}'">${h}</button>`
+  ).join('');
 }
 
-/* ---- Search ---- */
-function quickSearch(term) {
-  document.getElementById('searchInput').value = term;
-  doSearch();
-}
-
-async function doSearch() {
+/* ── Main search ── */
+function doSearch() {
   const query = document.getElementById('searchInput').value.trim();
   if (!query) return;
+  addHistory(query);
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    resetApiKey();
+  // 1. Try local data first
+  const results = asxLookup(query);
+
+  if (results.length === 1) {
+    renderResult(results[0]);
+    return;
+  }
+  if (results.length > 1) {
+    renderMulti(results, query);
     return;
   }
 
-  addToHistory(query);
-
-  const btn = document.getElementById('searchBtn');
-  btn.disabled = true;
-  btn.textContent = 'Searching...';
-
-  showLoading(query);
-
-  try {
-    const result = await lookupCompany(query, apiKey);
-    renderResult(result);
-  } catch (err) {
-    renderError(err);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Look up';
+  // 2. No local match — try AI if key exists
+  const apiKey = sessionStorage.getItem(API_KEY);
+  if (apiKey) {
+    aiLookup(query, apiKey);
+  } else {
+    renderNotFound(query);
   }
 }
 
-/* ---- Anthropic API Call ---- */
-async function lookupCompany(query, apiKey) {
-  const prompt = `You are an expert on the Australian Securities Exchange (ASX) and its S&P/ASX indices. The user is searching for: "${query}"
+/* ── Render: multiple matches ── */
+function renderMulti(results, query) {
+  const idxClass = { "ASX 20":"idx-asx20","ASX 50":"idx-asx50","ASX 100":"idx-asx100",
+                     "ASX 200":"idx-asx200","ASX 300":"idx-asx300" };
+  const rows = results.slice(0, 12).map(d => `
+    <div class="multi-result-row" onclick="renderResult(${JSON.stringify(d).replace(/"/g,'&quot;')})">
+      <span class="mr-ticker">${d.ticker}</span>
+      <span class="mr-name">${d.company}</span>
+      <span class="mr-index index-badge ${idxClass[d.primary] || 'idx-asx300'}">${d.primary}</span>
+    </div>`).join('');
 
-Use web search to find the most current and accurate information, then return ONLY a raw JSON object (no markdown, no backticks, no explanation) with this structure:
-
-{
-  "found": true,
-  "companyName": "Full official company name",
-  "ticker": "ASX ticker code (uppercase)",
-  "sector": "GICS sector name",
-  "industry": "GICS industry name",
-  "marketCapCategory": "Mega Cap / Large Cap / Mid Cap / Small Cap / Micro Cap",
-  "lastKnownMarketCap": "Approximate market cap in AUD, e.g. ~$240B AUD",
-  "indices": ["Array of indices from: ASX 20, ASX 50, ASX 100, ASX 200, ASX 300, All Ordinaries, Small Ordinaries"],
-  "primaryIndex": "The most exclusive/smallest index it belongs to",
-  "summary": "2-3 sentence description of the company and its market standing",
-  "note": "Any caveat about data currency, last rebalance date, or index membership confidence"
-}
-
-IMPORTANT index membership rules (strictly follow these):
-- Indices are nested: ASX 20 ⊂ ASX 50 ⊂ ASX 100 ⊂ ASX 200 ⊂ ASX 300 ⊂ All Ordinaries
-- If a company is in ASX 20, it is ALSO in ASX 50, ASX 100, ASX 200, ASX 300, All Ordinaries
-- If in ASX 100, it is NOT in Small Ordinaries
-- Small Ordinaries = companies in All Ordinaries NOT in ASX 100
-- If in ASX 300 but not ASX 200, include: ASX 300, All Ordinaries, Small Ordinaries
-- If in All Ordinaries but not ASX 300, include: All Ordinaries, Small Ordinaries
-- If not in any major index, return an empty array []
-
-If the company is not found on ASX or not an ASX-listed company:
-{"found": false, "message": "Brief explanation of why not found"}
-
-Return ONLY the JSON. No markdown fences.`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1024,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    if (response.status === 401) throw new Error('Invalid API key. Please check your Anthropic API key and try again.');
-    if (response.status === 429) throw new Error('Rate limit reached. Please wait a moment and try again.');
-    throw new Error(err.error?.message || `API error ${response.status}`);
-  }
-
-  const data = await response.json();
-
-  // Extract text from response (may have multiple content blocks due to tool use)
-  const textBlocks = data.content.filter(b => b.type === 'text').map(b => b.text);
-  const rawText = textBlocks.join('');
-
-  // Parse JSON from response
-  const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Could not parse response from AI. Please try again.');
-
-  let parsed;
-  try {
-    parsed = JSON.parse(jsonMatch[0]);
-  } catch {
-    throw new Error('Invalid response format. Please try again.');
-  }
-
-  return parsed;
-}
-
-/* ---- Render States ---- */
-function showLoading(query) {
   document.getElementById('resultArea').innerHTML = `
-    <div class="loading-state">
-      <div class="loading-spinner"></div>
-      <p>Searching ASX data for <strong>"${escHtml(query)}"</strong>…</p>
-      <p style="margin-top:6px;font-size:12px;opacity:0.7;">Using live web search for the most current index information</p>
-    </div>
-  `;
+    <div class="multi-results">
+      <h3>${results.length} result${results.length > 1 ? 's' : ''} for "${escHtml(query)}" — click to view</h3>
+      ${rows}
+      ${results.length > 12 ? `<p style="font-size:12px;color:var(--text-3);padding:8px">...and ${results.length-12} more. Try a more specific search.</p>` : ''}
+    </div>`;
 }
 
-function renderError(err) {
-  document.getElementById('resultArea').innerHTML = `
-    <div class="error-state">
-      <strong>Something went wrong</strong>
-      <p>${escHtml(err.message || 'An unexpected error occurred. Please try again.')}</p>
-    </div>
-  `;
-}
+/* ── Render: single result ── */
+function renderResult(d) {
+  if (typeof d === 'string') { try { d = JSON.parse(d); } catch { return; } }
 
-function renderResult(data) {
-  if (!data.found) {
-    document.getElementById('resultArea').innerHTML = `
-      <div class="error-state">
-        <strong>Company not found</strong>
-        <p>${escHtml(data.message || 'This company could not be found on the ASX. Check the ticker or name and try again.')}</p>
-      </div>
-    `;
-    return;
-  }
+  const idxClass = {
+    "ASX 20":"idx-asx20","ASX 50":"idx-asx50","ASX 100":"idx-asx100",
+    "ASX 200":"idx-asx200","ASX 300":"idx-asx300",
+    "All Ordinaries":"idx-allords","Small Ordinaries":"idx-smallords"
+  };
 
-  const indicesHtml = buildIndexBadges(data.indices || []);
+  const badges = (d.indices || []).map(idx =>
+    `<span class="index-badge ${idxClass[idx] || ''}">${idx}</span>`
+  ).join('');
+
+  const newBadge = d.newMar2026 ? '<span class="new-badge">★ New Mar 2026</span>' : '';
+  const isAI = d.source === 'ai';
 
   document.getElementById('resultArea').innerHTML = `
     <div class="result-card">
       <div class="result-header">
         <div>
-          <div class="company-name">${escHtml(data.companyName || '')}</div>
-          <span class="ticker-badge">ASX: ${escHtml(data.ticker || '')}</span>
+          <div class="company-name">${escHtml(d.company || d.companyName || '')}${newBadge}</div>
+          <span class="ticker-badge">ASX: ${escHtml(d.ticker)}</span>
         </div>
-        <div class="market-cap-block">
-          <div class="market-cap-value">${escHtml(data.lastKnownMarketCap || '—')}</div>
-          <div class="market-cap-label">${escHtml(data.marketCapCategory || '')}</div>
-        </div>
+        ${d.lastKnownMarketCap ? `<div style="text-align:right">
+          <div style="font-size:18px;font-weight:600;font-family:'DM Mono',monospace">${escHtml(d.lastKnownMarketCap)}</div>
+          <div style="font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${escHtml(d.marketCapCategory||'')}</div>
+        </div>` : ''}
       </div>
-
       <div class="result-indices">
         <h3>Index membership</h3>
-        <div class="index-badges">
-          ${indicesHtml || '<span class="index-badge idx-unknown">Not in major indices</span>'}
-        </div>
+        <div class="index-badges">${badges || '<span style="font-size:13px;color:var(--text-3)">Not in a major S&P/ASX index</span>'}</div>
       </div>
-
       <div class="result-details">
-        <div class="detail-block">
+        <div>
           <div class="detail-label">Primary index</div>
-          <div class="detail-value">${escHtml(data.primaryIndex || '—')}</div>
+          <div class="detail-value">${escHtml(d.primary || d.primaryIndex || '—')}</div>
         </div>
-        <div class="detail-block">
+        <div>
           <div class="detail-label">Sector</div>
-          <div class="detail-value">${escHtml(data.sector || '—')}</div>
+          <div class="detail-value">${escHtml(d.sector || '—')}</div>
         </div>
-        <div class="detail-block">
-          <div class="detail-label">Industry</div>
-          <div class="detail-value">${escHtml(data.industry || '—')}</div>
-        </div>
-        <div class="detail-block">
-          <div class="detail-label">Market cap tier</div>
-          <div class="detail-value">${escHtml(data.marketCapCategory || '—')}</div>
-        </div>
+        ${d.industry ? `<div><div class="detail-label">Industry</div><div class="detail-value">${escHtml(d.industry)}</div></div>` : ''}
+        ${d.marketCapCategory ? `<div><div class="detail-label">Market cap tier</div><div class="detail-value">${escHtml(d.marketCapCategory)}</div></div>` : ''}
       </div>
-
-      ${data.summary ? `<div class="result-summary">${escHtml(data.summary)}</div>` : ''}
-
-      ${data.note ? `<div class="result-note">⚠ ${escHtml(data.note)}</div>` : ''}
-    </div>
-  `;
+      ${d.summary ? `<div style="padding:16px 26px;font-size:14px;color:var(--text-2);line-height:1.7;border-bottom:1px solid var(--border)">${escHtml(d.summary)}</div>` : ''}
+      <div class="result-note">
+        ${isAI ? '🤖 Result sourced via Anthropic AI web search — ' : '📅 Data from '}
+        S&P/ASX March 2026 rebalance (effective 23 March 2026)
+        ${d.newMar2026 ? ' · ★ This company was <strong>newly added</strong> in the March 2026 rebalance' : ''}
+      </div>
+    </div>`;
 }
 
-/* ---- Index Badge Builder ---- */
-function buildIndexBadges(indices) {
-  const classMap = {
-    'ASX 20':          'idx-asx20',
-    'ASX 50':          'idx-asx50',
-    'ASX 100':         'idx-asx100',
-    'ASX 200':         'idx-asx200',
-    'ASX 300':         'idx-asx300',
-    'All Ordinaries':  'idx-allords',
-    'Small Ordinaries':'idx-smallords',
-  };
-
-  // Preferred display order
-  const order = ['ASX 20', 'ASX 50', 'ASX 100', 'ASX 200', 'ASX 300', 'All Ordinaries', 'Small Ordinaries'];
-  const sorted = [...indices].sort((a, b) => order.indexOf(a) - order.indexOf(b));
-
-  return sorted.map(idx => {
-    const cls = classMap[idx] || 'idx-unknown';
-    return `<span class="index-badge ${cls}">${escHtml(idx)}</span>`;
-  }).join('');
+/* ── Render: not found ── */
+function renderNotFound(query) {
+  document.getElementById('resultArea').innerHTML = `
+    <div class="error-state">
+      <strong>"${escHtml(query)}" not found in the March 2026 index data</strong>
+      <p style="margin-top:8px;font-size:13px">This company may be listed on ASX but not in the top 300, or the name/ticker may be different.
+      Use <strong>AI lookup</strong> (button above) to search all ~2,400 ASX-listed companies using live web search.</p>
+    </div>`;
 }
 
-/* ---- Utility ---- */
-function escHtml(str) {
-  if (typeof str !== 'string') return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+/* ── AI Lookup via Anthropic API ── */
+async function aiLookup(query, apiKey) {
+  const area = document.getElementById('resultArea');
+  area.innerHTML = `<div class="loading-state"><div class="loading-spinner"></div><p>Searching with AI for "<strong>${escHtml(query)}</strong>"…</p><p style="font-size:12px;margin-top:6px;opacity:.7">Using live web search for current data</p></div>`;
+
+  const prompt = `You are an ASX index expert. Search for "${query}" and return ONLY raw JSON (no markdown):
+{
+  "found": true,
+  "ticker": "ASX ticker",
+  "companyName": "Full name",
+  "sector": "GICS sector",
+  "industry": "GICS industry",
+  "marketCapCategory": "Large/Mid/Small/Micro Cap",
+  "lastKnownMarketCap": "e.g. ~$2.4B AUD",
+  "indices": ["from: ASX 20,ASX 50,ASX 100,ASX 200,ASX 300,All Ordinaries,Small Ordinaries"],
+  "primaryIndex": "most exclusive index",
+  "summary": "2 sentence description"
+}
+Rules: ASX 20⊂50⊂100⊂200⊂300⊂All Ords. Small Ords = All Ords minus ASX 100.
+If not found: {"found":false,"message":"reason"}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      if (res.status === 401) throw new Error('Invalid API key. Check your Anthropic key.');
+      if (res.status === 429) throw new Error('Rate limit — wait a moment and try again.');
+      throw new Error(e.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('Could not parse AI response.');
+    const parsed = JSON.parse(match[0]);
+
+    if (!parsed.found) {
+      area.innerHTML = `<div class="error-state"><strong>Not found</strong><p>${escHtml(parsed.message || 'This company could not be found on ASX.')}</p></div>`;
+      return;
+    }
+
+    renderResult({ ...parsed,
+      company: parsed.companyName,
+      primary: parsed.primaryIndex,
+      source: 'ai'
+    });
+  } catch (err) {
+    area.innerHTML = `<div class="error-state"><strong>AI lookup failed</strong><p>${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function escHtml(s) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
