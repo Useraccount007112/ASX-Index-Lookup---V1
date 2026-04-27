@@ -11,7 +11,6 @@
 </head>
 <body>
 
-  <!-- Header -->
   <header class="site-header">
     <div class="container">
       <div class="header-inner">
@@ -19,93 +18,74 @@
           <span class="logo-mark">ASX</span>
           <span class="logo-text">Index Lookup</span>
         </div>
-        <div class="header-meta">
-          <span>Powered by Anthropic AI + Web Search</span>
-        </div>
+        <div class="header-badge">March 2026 Rebalance</div>
       </div>
     </div>
   </header>
 
-  <!-- Main -->
   <main>
     <div class="container">
 
-      <!-- Hero -->
       <section class="hero">
         <h1>Find any ASX company's<br/>index membership</h1>
-        <p class="hero-sub">Search by company name or ticker to see if it's in the ASX 20, 50, 100, 200, 300, All Ordinaries, or Small Caps.</p>
+        <p class="hero-sub">Search by company name or ASX ticker. Data reflects the S&P/ASX <strong>March 2026 quarterly rebalance</strong> (effective 23 March 2026).</p>
       </section>
 
-      <!-- API Key Setup -->
-      <section class="api-setup" id="apiSetup">
-        <div class="setup-card">
-          <div class="setup-icon">🔑</div>
-          <h2>Setup required</h2>
-          <p>This app uses the Anthropic API with live web search to fetch accurate, up-to-date ASX index data. Enter your Anthropic API key below to get started.</p>
-          <p class="setup-note">Your key is stored in your browser only and never sent anywhere except directly to Anthropic's API.</p>
-          <div class="key-row">
-            <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
-            <button class="btn-primary" onclick="saveApiKey()">Save key</button>
-          </div>
-          <p class="setup-link">Don't have a key? <a href="https://console.anthropic.com/" target="_blank" rel="noopener">Get one from Anthropic Console →</a></p>
-        </div>
-      </section>
-
-      <!-- Search Section -->
-      <section class="search-section" id="searchSection" style="display:none;">
+      <!-- Search -->
+      <section class="search-section">
         <div class="search-card">
           <div class="search-row">
             <div class="search-input-wrap">
               <span class="search-icon">🔍</span>
-              <input type="text" id="searchInput" placeholder="Search by company name or ASX ticker (e.g. BHP, Commonwealth Bank, CSL...)" />
+              <input type="text" id="searchInput" placeholder="Search by company name or ASX ticker (e.g. BHP, CBA, Pilbara Minerals...)" autocomplete="off" />
             </div>
-            <button class="btn-primary" id="searchBtn" onclick="doSearch()">Look up</button>
+            <button class="btn-primary" id="searchBtn" onclick="doSearch()">Search</button>
           </div>
           <div class="quick-chips">
             <span class="chip-label">Try:</span>
             <button class="chip" onclick="quickSearch('BHP')">BHP</button>
             <button class="chip" onclick="quickSearch('CBA')">CBA</button>
             <button class="chip" onclick="quickSearch('CSL')">CSL</button>
-            <button class="chip" onclick="quickSearch('Pilbara Minerals')">Pilbara Minerals</button>
-            <button class="chip" onclick="quickSearch('Zip Co')">Zip Co</button>
-            <button class="chip" onclick="quickSearch('Fortescue')">Fortescue</button>
+            <button class="chip" onclick="quickSearch('NST')">NST ★</button>
+            <button class="chip" onclick="quickSearch('PLS')">PLS ★</button>
+            <button class="chip" onclick="quickSearch('Pilbara')">Pilbara</button>
+            <button class="chip" onclick="quickSearch('Zip')">Zip Co</button>
           </div>
+        </div>
+
+        <!-- AI Lookup toggle -->
+        <div class="ai-toggle-bar">
+          <div class="ai-toggle-left">
+            <span class="ai-icon">🤖</span>
+            <span>Can't find your company? Use <strong>AI lookup</strong> for companies not in the March 2026 list (requires Anthropic API key)</span>
+          </div>
+          <button class="btn-outline" onclick="toggleAiPanel()">Use AI lookup</button>
+        </div>
+
+        <div id="aiPanel" class="ai-panel" style="display:none;">
+          <p class="ai-panel-note">Your API key is stored in this browser session only and sent directly to Anthropic — never to any other server.</p>
+          <div class="key-row">
+            <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off" />
+            <button class="btn-primary" onclick="saveApiKey()">Save & search</button>
+            <button class="btn-ghost" onclick="toggleAiPanel()">Cancel</button>
+          </div>
+          <p class="setup-link">Get a key at <a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com →</a></p>
         </div>
 
         <!-- History -->
         <div id="historyBar" class="history-bar" style="display:none;">
           <span class="chip-label">Recent:</span>
           <div id="historyChips"></div>
-          <button class="key-reset-btn" onclick="resetApiKey()" title="Change API key">Change API key</button>
         </div>
 
-        <!-- Result area -->
+        <!-- Results -->
         <div id="resultArea"></div>
       </section>
 
-      <!-- How it works -->
-      <section class="how-section" id="howSection">
-        <h2>How it works</h2>
-        <div class="how-grid">
-          <div class="how-card">
-            <div class="how-num">01</div>
-            <h3>Search any company</h3>
-            <p>Enter a company name or ASX ticker code. The app recognises both — "BHP" or "BHP Group" will both work.</p>
-          </div>
-          <div class="how-card">
-            <div class="how-num">02</div>
-            <h3>Live web search</h3>
-            <p>The Anthropic AI uses real-time web search to find the most current index membership data from ASX and S&amp;P sources.</p>
-          </div>
-          <div class="how-card">
-            <div class="how-num">03</div>
-            <h3>Index classification</h3>
-            <p>Results show all indices the company belongs to — the indices are nested, so ASX 100 members are also in ASX 200, 300, and All Ords.</p>
-          </div>
-        </div>
-
-        <div class="index-explainer">
-          <h3>About ASX indices</h3>
+      <!-- Index explainer -->
+      <section class="how-section">
+        <h2>About S&P/ASX indices</h2>
+        <div class="index-chain-wrap">
           <div class="index-chain">
             <div class="index-pill pill-20">ASX 20</div>
             <div class="chain-arrow">⊂</div>
@@ -119,7 +99,49 @@
             <div class="chain-arrow">⊂</div>
             <div class="index-pill pill-ords">All Ords</div>
           </div>
-          <p class="index-note">The <strong>Small Ordinaries</strong> index consists of companies in the All Ords that are <em>not</em> in the ASX 100. Indices are rebalanced quarterly by S&amp;P Dow Jones Indices.</p>
+          <p class="index-note"><strong>Small Ordinaries</strong> = companies in the All Ords but <em>not</em> in the ASX 100. Indices are rebalanced quarterly by S&amp;P Dow Jones Indices (March, June, September, December).</p>
+        </div>
+
+        <div class="how-grid">
+          <div class="how-card">
+            <div class="how-num">267</div>
+            <p>Companies in the built-in March 2026 dataset</p>
+          </div>
+          <div class="how-card">
+            <div class="how-num">15 ★</div>
+            <p>New additions in the March 2026 rebalance</p>
+          </div>
+          <div class="how-card">
+            <div class="how-num">~2,400</div>
+            <p>Total ASX-listed entities (use AI lookup for others)</p>
+          </div>
+        </div>
+
+        <!-- March 2026 changes summary -->
+        <div class="changes-card">
+          <h3>March 2026 rebalance highlights</h3>
+          <div class="changes-grid">
+            <div class="change-group">
+              <div class="change-index">ASX 20</div>
+              <div class="change-add">+ Northern Star Resources (NST)</div>
+              <div class="change-rem">− Santos (STO)</div>
+            </div>
+            <div class="change-group">
+              <div class="change-index">ASX 50</div>
+              <div class="change-add">+ Light & Wonder (LNW), Pilbara Minerals (PLS)</div>
+              <div class="change-rem">− Seek (SEK), Technology One (TNE)</div>
+            </div>
+            <div class="change-group">
+              <div class="change-index">ASX 100</div>
+              <div class="change-add">+ Greatland Resources (GRL), Regis Resources (RRL), Westgold Resources (WGX)</div>
+              <div class="change-rem">− Lendlease (LLC), Netwealth (NWL), Pinnacle Investment (PNI)</div>
+            </div>
+            <div class="change-group">
+              <div class="change-index">ASX 200</div>
+              <div class="change-add">+ Predictive Discovery (PDC), SRG Global (SRG), Vulcan Energy (VUL)</div>
+              <div class="change-rem">− Catapult Sports (CAT), DigiCo REIT (DGT), EBOS Group (EBO)</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -128,11 +150,13 @@
 
   <footer class="site-footer">
     <div class="container">
-      <p>ASX Index Lookup — for informational purposes only. Index data sourced via live web search and may not reflect the latest quarterly rebalance. Not financial advice.</p>
-      <p style="margin-top:6px;">Built with the <a href="https://www.anthropic.com" target="_blank" rel="noopener">Anthropic API</a>. Designed for GitHub Pages hosting.</p>
+      <p>ASX Index Lookup — for informational purposes only. Index data reflects the S&P/ASX March 2026 rebalance. Not financial advice.</p>
+      <p style="margin-top:4px;">Data sourced from S&P Dow Jones Indices announcements. AI lookup powered by the <a href="https://www.anthropic.com" target="_blank">Anthropic API</a>.</p>
     </div>
   </footer>
 
+  <!-- Load data first, then app logic -->
+  <script src="data/asx-data.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
